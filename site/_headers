@@ -1,0 +1,13 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+/data.json
+  Cache-Control: public, max-age=600
+/style.css
+  Cache-Control: public, max-age=600
+/app.js
+  Cache-Control: public, max-age=600
+/zh-font.css
+  Cache-Control: public, max-age=86400
+/og.png
+  Cache-Control: public, max-age=86400

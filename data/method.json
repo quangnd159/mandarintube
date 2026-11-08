@@ -1,0 +1,24 @@
+{
+  "vi": {
+    "fanText": "Trang lấy mẫu tối đa 150 bình luận trên 14 video của mỗi kênh, rồi xem bao nhiêu người trong đó cũng bình luận ở các kênh gốc. Người đã yêu một giáo viên giỏi là người đánh giá tốt nhất cho giáo viên tiếp theo, và điều này rất khó làm giả. Trang cũng xem có bao nhiêu người quay lại bình luận ở nhiều video của cùng một kênh.",
+    "aiText": "Độ phổ biến không giúp được gì ở đây: nhiều kênh đứng đầu kết quả tìm kiếm YouTube là kênh do AI tạo. Vì vậy, mọi kênh ứng viên đều qua các bước kiểm tra sau:",
+    "aiChecks": [
+      "Claude, một trợ lý AI đã giúp xây dựng trang này, xem các khung hình giữa video của sáu video mỗi kênh, chủ yếu là video gần đây, và loại những kênh không có người thật, hoặc gần đây chuyển sang cảnh do AI tạo. Chưa có người nào xem lại toàn bộ các quyết định này.",
+      "Nhãn của YouTube dành cho nội dung bị chỉnh sửa hoặc do AI tạo được kiểm tra trên mẫu 14 video của mỗi kênh, và đến nay trên {checked} trong số {total} video có trong trang. Video nào có nhãn này đều bị loại.",
+      "Bình luận được tìm kiếm để phát hiện người xem phàn nàn về giọng AI."
+    ],
+    "aiLimit": "Các bước này giúp lọc tốt nhưng không phải là bằng chứng chắc chắn. Không ai nghe hết mọi video, và một kênh vẫn có thể dùng giọng AI trên hình ảnh thật. Những kênh quá lẫn lộn, không tách được phần thật và phần AI, cũng bị loại, nên có thể thiếu một số giáo viên giỏi.",
+    "levelText": "Nếu tiêu đề có ghi trình độ, trang dùng đúng trình độ đó. Nếu không, trang ước tính theo trình độ mà kênh ghi nhiều nhất; khi kiểm tra, cách này khớp với nhãn của giáo viên khoảng 69% số lần. Một số kênh hiếm khi ghi trình độ thì dùng mức do Hacking Chinese công bố. Nhãn của mỗi giáo viên không theo cùng một chuẩn, nên trung cấp của người này có thể dễ hơn của người khác. Trang cũng đã thử tính trình độ từ phụ đề, nhưng kết quả không tốt hơn đoán, nên không dùng."
+  },
+  "en": {
+    "fanText": "The site samples up to 150 comments on 14 videos from each channel, then checks how many of those people also comment on the starting channels. People who already love a good teacher are the best judges of the next one, and that’s very hard to fake. It also looks at how many commenters come back across several videos of the same channel.",
+    "aiText": "Popularity doesn’t help here: several channels that rank highly in YouTube search are generated. So every candidate went through these checks:",
+    "aiChecks": [
+      "Claude, the AI assistant that helped build this site, looked at mid-video frames from six videos per channel, mostly recent ones, and left out channels with no real person, or whose recent uploads switched to generated scenes. No person has reviewed all of these decisions.",
+      "YouTube’s label for altered or generated content was checked on a sample of 14 videos per channel, and so far on {checked} of the {total} videos listed here. Any video with that label is removed.",
+      "Comments were searched for people complaining about AI voices."
+    ],
+    "aiLimit": "These checks filter well but aren’t proof. Nobody listened to every video, and a channel could still use a generated voice over real footage. Channels too mixed to separate were left out, so some good teachers may be missing.",
+    "levelText": "If a title states a level, that’s the level shown. Otherwise it’s estimated from the level the channel states most often, which matched the teacher’s own label about 69% of the time when tested. A few channels that rarely state one use the level published by Hacking Chinese. Teachers’ labels aren’t standardised, so one teacher’s intermediate can be easier than another’s. The site also tried working out levels from captions, but that did no better than guessing, so it isn’t used."
+  }
+}

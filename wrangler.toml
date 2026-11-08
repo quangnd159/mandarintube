@@ -1,0 +1,6 @@
+name = "mandarintube"
+compatibility_date = "2026-10-01"
+routes = [{ pattern = "mandarintube.dqnotes.com", custom_domain = true }]
+
+[assets]
+directory = "./site"
