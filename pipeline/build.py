@@ -255,6 +255,7 @@ def english_spoken():
 
 
 ENGLISH = english_spoken()
+TITLES_VI = json.loads((ROOT / "data/titles_vi.json").read_text()) if (ROOT / "data/titles_vi.json").exists() else {}
 
 
 def video_pool(c):
@@ -358,7 +359,7 @@ def main():
             # Blend the channel's standing with this video's standing inside its channel.
             s = 0.65 * x["score"] + 0.35 * (adj.get(v["id"], 0) + 2.5) / 5
             videos_out.append([v["id"], rank, v["title"], int(v["duration"]), v.get("view_count") or 0,
-                               int(v.get("timestamp") or 0), band, src, round(s, 4)])
+                               int(v.get("timestamp") or 0), band, src, round(s, 4), TITLES_VI.get(v["id"], "")])
         channels_out.append({
             "id": x["cid"], "key": (c.get("handle") or x["cid"]).lstrip("@"), "name": c["name"], "seed": c["seed"],
             "people": r["people"], "threads": r["threads"], "first": r["first"], "last": r["last"],
@@ -380,6 +381,7 @@ def main():
     }
     (ROOT / "site/data.json").write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
     print(f"{len(channels_out)} channels, {len(videos_out)} videos, {len(json.dumps(data, ensure_ascii=False)) // 1024} KB")
+    print("titles without a Vietnamese translation:", sum(not v[9] for v in videos_out))
     print(collections.Counter(a["status"] for a in audit))
     print("levels", sorted(collections.Counter(v[6] for v in videos_out).items()), "labelled", sum(v[7] for v in videos_out))
     for a in audit:

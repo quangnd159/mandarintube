@@ -21,6 +21,18 @@ answers 429 to anything faster. If it stops with exit code 3 it hit repeated rat
 wait a while and run `python3 pipeline/disclosure.py site` again, since it resumes. The
 method page shows how many listed videos have been checked, so a partial run stays honest.
 
+## Translate new titles
+
+Vietnamese titles live in `data/titles_vi.json` by video ID, and a title with no translation
+shows the original. `build.py` prints how many are missing. To fill them:
+
+```bash
+python3 pipeline/titles.py todo     # writes data/raw/titles/batch_NN.json
+# translate each batch to out_NN.json following pipeline/titles_prompt.md (ask Claude Code)
+python3 pipeline/titles.py merge    # checks them and adds what passes
+python3 pipeline/build.py
+```
+
 ## Change what's on the site
 
 | To do this | Edit |

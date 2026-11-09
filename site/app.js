@@ -61,6 +61,8 @@ const T = {
     mListen: "Chỉ có video luyện nghe",
     mListenBody: "Trang này dành cho việc nghe tiếng Trung. Danh sách từ vựng, đề thi, bài ngữ pháp và phát âm bị lược bỏ, kể cả khi đến từ kênh hay, trừ khi tiêu đề cho thấy đó là câu chuyện, podcast hay hội thoại. Video chỉ dành cho hội viên và Shorts cũng bị bỏ, cùng với video mà YouTube nhận diện là nói bằng tiếng Anh, nên đôi khi một video hay có thể bị loại nhầm.",
     mAi: "Giữ các kênh do AI tạo ở ngoài",
+    mTitles: "Tiêu đề tiếng Việt",
+    mTitlesBody: "Claude, một trợ lý AI, đã dịch và rút gọn tiêu đề video sang tiếng Việt, bỏ các nhãn trình độ và từ khóa mà trang đã hiển thị ở chỗ khác. Một số tiêu đề có thể chưa chính xác, và chưa có người nào đọc lại toàn bộ. Tiêu đề gốc luôn nằm dưới video.",
     mLevels: "Trình độ được xác định thế nào",
     mPrivacy: "Những gì được lưu về bạn",
     mPrivacyBody: "Lượt thích, lịch sử và trình độ của bạn chỉ nằm trong trình duyệt này. Trang không có tài khoản và không có công cụ phân tích. Video phát qua trình phát chế độ riêng tư của YouTube, và điều khoản của YouTube áp dụng khi video bắt đầu chạy.",
@@ -113,6 +115,8 @@ const T = {
     mListen: "Listening videos only",
     mListenBody: "This site is for hearing Mandarin. Vocabulary lists, exam papers, grammar and pronunciation lessons are left out, even from good channels, unless the title shows it’s a story, podcast or conversation. Members-only videos and Shorts are left out too, along with videos YouTube detects as spoken in English, so a good one is occasionally removed by mistake.",
     mAi: "Keeping AI-generated channels out",
+    mTitles: "Vietnamese titles",
+    mTitlesBody: "Claude, an AI assistant, translated and shortened the video titles into Vietnamese, dropping level labels and keywords the site shows elsewhere. Some may be inaccurate, and no person has read them all. The original title is always under the video.",
     mLevels: "How levels work",
     mPrivacy: "What’s stored about you",
     mPrivacyBody: "Likes, history and your level stay in this browser. There’s no account and no analytics on this site. Videos play through YouTube’s privacy-enhanced player, and YouTube’s terms apply once one starts.",
@@ -163,6 +167,7 @@ const fmtDur = (s) => {
 };
 const fmtInt = (n) => Number(n).toLocaleString(locale());
 const fmtCompact = (n) => new Intl.NumberFormat(locale(), { notation: "compact", maximumFractionDigits: 1 }).format(n || 0);
+const titleOf = (v) => (state.lang === "vi" && v.vt) || v.t;
 const levelOf = (id) => LEVELS.find((l) => l.id === id);
 const channelHref = (c) => `/?c=${encodeURIComponent(c.key)}`;
 const hash01 = (str, seed) => {
@@ -255,7 +260,7 @@ function card(v) {
   return `<article class="card">
     <a href="/?v=${v.id}" data-link>
       <div class="thumb">${thumbImg(v.id)}<span class="dur">${fmtDur(v.d)}</span></div>
-      <h2 class="card-title">${esc(v.t)}</h2>
+      <h2 class="card-title">${esc(titleOf(v))}</h2>
     </a>${metaLine(v)}</article>`;
 }
 function evidenceSentence(c) {
@@ -335,7 +340,7 @@ function viewWatch(id) {
     return;
   }
   const c = DATA.channels[v.c], lvl = levelOf(v.l);
-  document.title = `${v.t} | MandarinTube`;
+  document.title = `${titleOf(v)} | MandarinTube`;
   state.history = [{ id, t: Date.now() }, ...state.history.filter((h) => h.id !== id)].slice(0, 500);
   store.write("history", state.history);
   const same = ranked(VIDEOS.filter((x) => x.id !== id && x.c === v.c && (!v.l || x.l === v.l)), { personal: false }).slice(0, 4);
@@ -346,7 +351,8 @@ function viewWatch(id) {
   main.innerHTML = `<div class="watch">
     <div>
       <div class="player"><iframe src="https://www.youtube-nocookie.com/embed/${id}?${params}" title="${esc(v.t)}" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
-      <h1>${esc(v.t)}</h1>
+      <h1>${esc(titleOf(v))}</h1>
+      <p class="orig" lang="und"${titleOf(v) === v.t ? " hidden" : ""}>${esc(v.t)}</p>
       <div class="meta"><a href="${channelHref(c)}" data-link>${esc(c.name)}</a>${v.v ? `<span>${esc(L.views(fmtCompact(v.v)))}</span>` : ""}<span>${fmtDur(v.d)}</span></div>
       <div class="actions">
         <button class="chip" type="button" data-toggle="liked" data-id="${id}" aria-pressed="${liked}">${esc(toggleLabel("liked", liked))}</button>
@@ -362,7 +368,7 @@ function viewWatch(id) {
       <h2>${esc(L.upNext)}</h2>
       ${[...same, ...others].map((n) => `<a class="next-item" href="/?v=${n.id}" data-link>
         <div class="thumb">${thumbImg(n.id)}<span class="dur">${fmtDur(n.d)}</span></div>
-        <div><div class="card-title">${esc(n.t)}</div><div class="meta"><span>${esc(DATA.channels[n.c].name)}</span></div></div>
+        <div><div class="card-title" data-vid="${n.id}">${esc(titleOf(n))}</div><div class="meta"><span>${esc(DATA.channels[n.c].name)}</span></div></div>
       </a>`).join("")}
     </aside>
   </div>`;
@@ -444,6 +450,8 @@ function viewMethod() {
     <p>${esc(m.aiText)}</p>
     <ul>${m.aiChecks.map((x) => `<li>${esc(x.replace("{checked}", fmtInt(s.labelChecked)).replace("{total}", fmtInt(s.videos)))}</li>`).join("")}</ul>
     <p>${esc(m.aiLimit)}</p>
+    <h2>${esc(L.mTitles)}</h2>
+    <p>${esc(L.mTitlesBody)}</p>
     <h2>${esc(L.mLevels)}</h2>
     <p>${esc(m.levelText)}</p>
     <h2>${esc(L.mPrivacy)}</h2>
@@ -573,6 +581,10 @@ function relabelWatch() {
   const L = t(), q = new URLSearchParams(location.search), v = BY_ID.get(q.get("v"));
   if (!v) return;
   const c = DATA.channels[v.c], lvl = levelOf(v.l);
+  document.title = `${titleOf(v)} | MandarinTube`;
+  main.querySelector(".watch h1").textContent = titleOf(v);
+  main.querySelector(".orig").hidden = titleOf(v) === v.t;
+  main.querySelectorAll("[data-vid]").forEach((el) => { el.textContent = titleOf(BY_ID.get(el.dataset.vid)); });
   main.querySelectorAll("[data-toggle]").forEach((b) => { b.textContent = toggleLabel(b.dataset.toggle, b.getAttribute("aria-pressed") === "true"); });
   const yt = main.querySelector(".actions a.chip");
   if (yt) yt.textContent = L.openYt;
@@ -626,8 +638,8 @@ async function init() {
     main.innerHTML = emptyBlock(t().loadFailed(err.message), t().loadFix);
     return;
   }
-  VIDEOS = DATA.videos.map(([id, c, title, d, v, ts, l, ls, s]) => ({
-    id, c, t: title, d, v, ts, l, ls, s, q: fold(`${title} ${DATA.channels[c].name}`),
+  VIDEOS = DATA.videos.map(([id, c, title, d, v, ts, l, ls, s, vt]) => ({
+    id, c, t: title, vt, d, v, ts, l, ls, s, q: fold(`${title} ${vt || ""} ${DATA.channels[c].name}`),
   }));
   BY_ID = new Map(VIDEOS.map((v) => [v.id, v]));
   route(history.state || undefined);
