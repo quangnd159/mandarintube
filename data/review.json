@@ -1,6 +1,7 @@
 {
   "_about": "Editorial decisions for the site. exclude lists channels left out after review, for any reason. Being listed here is not a claim about a channel.",
   "exclude": [
+    "@ABChinese",
     "@AskAndy",
     "@BaoBaoMandarin",
     "@binmusictaipei",
@@ -15,6 +16,7 @@
     "@EverydayChinese",
     "@GraceMandarinChinese",
     "@himmusic_official",
+    "@julesytooshoes",
     "@JVRmuzic",
     "@KevininShanghai",
     "@learnchinesenow",
@@ -22,8 +24,10 @@
     "@LearnChineseThroughPodcast",
     "@LearnChineseWithPipo",
     "@LittleFoxChinese",
+    "@MandarinBlueprint",
     "@MandarinHeroes",
     "@maomichinese3683",
+    "@OutlierLinguistics",
     "@RockRecordsTaipei",
     "@SayMandarin",
     "@StorytimeinChinese",
