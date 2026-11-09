@@ -12,13 +12,16 @@ const LENGTHS = [
   { id: "long", test: (d) => d >= 1800 },
 ];
 const PAGE = 24;
+const QUANG = "https://www.dqnotes.com/";
+const REPO = "https://github.com/quangnd159/mandarintube";
 
 const T = {
   vi: {
     skip: "Chuyển đến nội dung", navHome: "Trang chủ", navChannels: "Kênh", navSaved: "Đã lưu", navMethod: "Cách chọn",
     loading: "Đang tải video…",
     loadFailed: (m) => `Không tải được danh sách video (${m}).`, loadFix: "Hãy kiểm tra kết nối rồi tải lại trang.",
-    intro: (v, c, p) => `${v} video luyện nghe tiếng Trung từ ${c} kênh, dựa trên gợi ý của ${p} người học và đã loại các kênh do AI tạo. Chọn trình độ của bạn.`,
+    intro: (v, c) => `${v} video luyện nghe tiếng Trung từ ${c} kênh`,
+    introSub: (p) => `Dựa trên gợi ý của ${p} người học và đã loại các kênh do AI tạo. Chọn trình độ của bạn.`,
     levelGroup: "Trình độ của bạn", lengthGroup: "Độ dài video",
     any: "Mọi độ dài", short: "Dưới 10 phút", mid: "10–30 phút", long: "Trên 30 phút",
     search: "Tìm theo tiêu đề hoặc kênh", count: (n) => `${n} video`,
@@ -64,6 +67,10 @@ const T = {
     mTitles: "Tiêu đề tiếng Việt",
     mTitlesBody: "Claude, một trợ lý AI, đã dịch và rút gọn tiêu đề video sang tiếng Việt, bỏ các nhãn trình độ và từ khóa mà trang đã hiển thị ở chỗ khác. Một số tiêu đề có thể chưa chính xác, và chưa có người nào đọc lại toàn bộ. Tiêu đề gốc luôn nằm dưới video.",
     mLevels: "Trình độ được xác định thế nào",
+    credit: "Xem các dự án khác của Quang tại dqnotes.com", sourceCode: "Mã nguồn trên GitHub",
+    mBuild: "Làm trang này cho ngôn ngữ khác",
+    mBuildBody: "Đưa câu lệnh này cho một trợ lý AI viết mã, rồi điền vào phần trong ngoặc vuông.",
+    copy: "Sao chép câu lệnh", copied: "Đã sao chép", copySelect: "Hãy nhấn Cmd/Ctrl+C để sao chép",
     mPrivacy: "Những gì được lưu về bạn",
     mPrivacyBody: "Lượt thích, lịch sử và trình độ của bạn chỉ nằm trong trình duyệt này. Trang không có tài khoản và không có công cụ phân tích. Video phát qua trình phát chế độ riêng tư của YouTube, và điều khoản của YouTube áp dụng khi video bắt đầu chạy.",
     mThumbs: (d) => `Ảnh thu nhỏ là khung hình giữa video, không phải ảnh do người đăng thiết kế. Cập nhật lần cuối: ${d}.`,
@@ -72,7 +79,8 @@ const T = {
     skip: "Skip to content", navHome: "Home", navChannels: "Channels", navSaved: "Saved", navMethod: "How it’s chosen",
     loading: "Loading videos…",
     loadFailed: (m) => `The video list didn’t load (${m}).`, loadFix: "Check your connection and reload the page.",
-    intro: (v, c, p) => `${v} Mandarin listening videos from ${c} channels, based on what ${p} learners recommended, with AI-generated channels removed. Pick your level.`,
+    intro: (v, c) => `${v} Mandarin listening videos from ${c} channels`,
+    introSub: (p) => `Based on what ${p} learners recommended, with AI-generated channels removed. Pick your level.`,
     levelGroup: "Your level", lengthGroup: "Video length",
     any: "Any length", short: "Under 10 min", mid: "10–30 min", long: "Over 30 min",
     search: "Search titles and channels", count: (n) => `${n} videos`,
@@ -118,6 +126,10 @@ const T = {
     mTitles: "Vietnamese titles",
     mTitlesBody: "Claude, an AI assistant, translated and shortened the video titles into Vietnamese, dropping level labels and keywords the site shows elsewhere. Some may be inaccurate, and no person has read them all. The original title is always under the video.",
     mLevels: "How levels work",
+    credit: "See other stuff by Quang at dqnotes.com", sourceCode: "Source code on GitHub",
+    mBuild: "Make this for another language",
+    mBuildBody: "Give this prompt to an AI coding agent, and fill in the square brackets.",
+    copy: "Copy prompt", copied: "Copied", copySelect: "Press Cmd/Ctrl+C to copy",
     mPrivacy: "What’s stored about you",
     mPrivacyBody: "Likes, history and your level stay in this browser. There’s no account and no analytics on this site. Videos play through YouTube’s privacy-enhanced player, and YouTube’s terms apply once one starts.",
     mThumbs: (d) => `Thumbnails are frames from the middle of each video, not the thumbnail the uploader designed. Last updated ${d}.`,
@@ -296,7 +308,8 @@ function viewHome(restore) {
   const L = t();
   document.title = "MandarinTube";
   main.innerHTML = `
-    <h1 class="intro">${esc(L.intro(fmtInt(DATA.stats.videos), DATA.channels.length, fmtInt(DATA.stats.people)))}</h1>
+    <h1 class="intro">${esc(L.intro(fmtInt(DATA.stats.videos), DATA.channels.length))}</h1>
+    <p class="intro-sub">${esc(L.introSub(fmtInt(DATA.stats.people)))}</p>
     <div class="levels" role="group" aria-label="${esc(L.levelGroup)}">
       ${LEVELS.map((l) => `<button class="level" type="button" data-level="${l.id}" aria-pressed="${state.level === l.id}">
         <span class="cell"><span class="zh" lang="zh-Hans">${l.zh}</span></span>
@@ -319,7 +332,9 @@ function renderFeed(initial) {
   if (!holder) return;
   main.querySelectorAll(".sentinel").forEach((s) => s.remove());
   const L = t(), list = currentFeed();
-  main.querySelector("#count").textContent = L.count(fmtInt(list.length));
+  // The headline already gives the full total, so this only speaks up once a filter narrows it.
+  const filtered = state.level || state.length !== "any" || state.query;
+  main.querySelector("#count").textContent = filtered ? L.count(fmtInt(list.length)) : "";
   if (!list.length) {
     holder.innerHTML = emptyBlock(L.noMatch, L.noMatchFix, `<button class="chip" type="button" data-reset>${esc(L.reset)}</button>`);
     return;
@@ -457,6 +472,12 @@ function viewMethod() {
     <h2>${esc(L.mPrivacy)}</h2>
     <p>${esc(L.mPrivacyBody)}</p>
     <p>${esc(L.mThumbs(DATA.built))}</p>
+    <h2>${esc(L.mBuild)}</h2>
+    <p>${esc(L.mBuildBody)}</p>
+    <pre class="prompt" lang="en" tabindex="0">${esc(DATA.method.buildPrompt)}</pre>
+    <button class="chip" type="button" data-copy-prompt aria-live="polite">${esc(L.copy)}</button>
+    <p class="credit"><a href="${QUANG}" target="_blank" rel="noopener">${esc(L.credit)}</a></p>
+    <p><a href="${REPO}" target="_blank" rel="noopener">${esc(L.sourceCode)}</a></p>
   </div>`;
 }
 
@@ -534,6 +555,19 @@ document.addEventListener("click", (e) => {
     state.level = null; state.length = "any"; state.query = "";
     store.write("level", null); store.write("length", "any");
     route();
+    return;
+  }
+  const copyBtn = e.target.closest("[data-copy-prompt]");
+  if (copyBtn) {
+    const say = (text) => {
+      copyBtn.textContent = text;
+      setTimeout(() => { if (copyBtn.isConnected) copyBtn.textContent = t().copy; }, 2000);
+    };
+    navigator.clipboard.writeText(DATA.method.buildPrompt).then(() => say(t().copied), () => {
+      // Clipboard access can be refused, so leave the text selected for a manual copy.
+      getSelection().selectAllChildren(main.querySelector(".prompt"));
+      say(t().copySelect);
+    });
     return;
   }
   const toggle = e.target.closest("[data-toggle]");

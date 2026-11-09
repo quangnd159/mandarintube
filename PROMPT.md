@@ -1,0 +1,1 @@
+Build me a YouTube-style site for learning [LANGUAGE], restricted to listening videos from channels that learners have repeatedly recommended on Reddit over the years and that share viewers with my favourites: [CHANNELS]. No AI-generated channels, no server, no login. Don't make any mistakes.

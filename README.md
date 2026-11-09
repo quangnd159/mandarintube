@@ -6,6 +6,12 @@ Live at https://mandarintube.dqnotes.com/ in Vietnamese by default, with an Engl
 It's a static site on Cloudflare Workers, so there's no server to run. The data is built
 on your Mac and uploaded. Likes and history stay in each visitor's browser.
 
+See other stuff by Quang at [dqnotes.com](https://www.dqnotes.com/).
+
+## Make this for another language
+
+Give [PROMPT.md](PROMPT.md) to an AI coding agent, and fill in the square brackets.
+
 ## Refresh the data
 
 ```bash

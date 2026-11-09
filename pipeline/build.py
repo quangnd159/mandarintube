@@ -376,7 +376,7 @@ def main():
         "stats": {"videos": len(videos_out), "people": len(set().union(*[x["r"]["authors"] for x in keep])), "redditRows": total_rows,
                   "redditFirst": time.gmtime(corpus["first"]).tm_year if corpus["first"] else None, "candidates": len(channels), "excludedAi": excluded_ai,
                   "labelChecked": sum(v[0] in DISCLOSURE for v in videos_out)},
-        "method": json.loads((ROOT / "data/method.json").read_text()) | {"seedNames": seed_names},
+        "method": json.loads((ROOT / "data/method.json").read_text()) | {"seedNames": seed_names, "buildPrompt": (ROOT / "PROMPT.md").read_text().strip()},
         "channels": channels_out, "videos": videos_out,
     }
     (ROOT / "site/data.json").write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
