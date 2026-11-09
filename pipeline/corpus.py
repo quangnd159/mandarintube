@@ -4,6 +4,9 @@
 The archive's text search times out on common words, but plain date-ordered reads
 are cheap. So everything comes down once and channel names are matched locally.
 Output: data/raw/corpus/<kind>_<sub>.jsonl, plus a .cursor file for resuming.
+
+Usage: corpus.py        download older history, resuming where the last run stopped
+       corpus.py sync   add whatever was posted since the newest row already held
 """
 import calendar
 import concurrent.futures as cf
@@ -78,8 +81,97 @@ def run(stream):
     print(f"{name}: finished, {total} rows this run", flush=True)
 
 
+def iter_rows(needle=None):
+    """Every downloaded comment and post once, from the corpus and the older link harvest.
+    With a needle, lines without that text are skipped before the slower JSON parse."""
+    seen = set()
+    for path in [*sorted(OUT.glob("*.jsonl")), OUT.parent / "reddit.jsonl"]:
+        if not path.exists():
+            continue
+        with path.open() as f:
+            for line in f:
+                if needle and needle not in line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except json.JSONDecodeError:
+                    continue  # A line still being written by the downloader.
+                if r["id"] not in seen:
+                    seen.add(r["id"])
+                    yield r
+
+
+def newest_held(path):
+    mark = path.with_suffix(".synced")
+    if mark.exists():
+        return int(mark.read_text())
+    newest = 0
+    if path.exists():
+        with path.open() as f:
+            for line in f:
+                try:
+                    newest = max(newest, int(json.loads(line)["created_utc"]))
+                except (json.JSONDecodeError, KeyError):
+                    continue
+    return newest
+
+
+def sync_stream(kind, sub):
+    """Oldest first from the newest row held, so a cut-off run leaves no hole behind it."""
+    path = OUT / f"{kind}_{sub}.jsonl"
+    mark = path.with_suffix(".synced")
+    after = newest_held(path)
+    if not after:
+        raise RuntimeError(f"{path.name} holds nothing to continue from")
+    keep = KEEP_C if kind == "comments" else KEEP_P
+    seen_at_edge, total, fails = set(), 0, 0
+    with path.open("a") as out:
+        while True:
+            try:
+                rows = get(kind, {"subreddit": sub, "limit": 100, "sort": "asc", "after": after})
+            except ArchiveTimeout:
+                fails += 1
+                if fails > 4:
+                    raise
+                time.sleep(30 * fails)
+                continue
+            fails = 0
+            fresh = [r for r in rows if r["id"] not in seen_at_edge]
+            if not fresh:
+                if len(rows) < 100:
+                    break
+                after += 1  # A full page sharing one timestamp: step past it.
+                continue
+            for r in fresh:
+                rec = {k: r[k] for k in keep if k in r}
+                rec["kind"] = "comment" if kind == "comments" else "post"
+                rec["subreddit"] = sub
+                out.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            out.flush()
+            total += len(fresh)
+            after = int(rows[-1]["created_utc"])
+            seen_at_edge = {r["id"] for r in rows if int(r["created_utc"]) == after}
+            mark.write_text(str(after))
+            if len(rows) < 100:
+                break
+            time.sleep(0.2)
+    print(f"{kind} {sub}: {total} new rows", flush=True)
+
+
+def sync():
+    streams = [("comments", s) for s in ("MandarinChinese", "learnchinese", "ChineseLanguage")]
+    streams += [("posts", s) for s in ("MandarinChinese", "learnchinese", "ChineseLanguage")]
+    with cf.ThreadPoolExecutor(3) as ex:
+        for f in cf.as_completed([ex.submit(sync_stream, *s) for s in streams]):
+            f.result()
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
+    if sys.argv[1:] == ["sync"]:
+        sync()
+        print("done", flush=True)
+        return
     todo = [s for s in STREAMS if not (OUT / f"{s[4]}.done").exists()]
     with cf.ThreadPoolExecutor(WORKERS) as ex:
         for f in cf.as_completed([ex.submit(run, s) for s in todo]):

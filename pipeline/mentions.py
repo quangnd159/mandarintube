@@ -103,15 +103,30 @@ ALIASES = {
 }
 
 
+GENERIC = {"learn", "learning", "chinese", "mandarin", "with", "the", "in", "and", "easy", "study", "language", "class", "lesson", "lessons", "online", "official"}
+
+
+def fallback_aliases(name):
+    """A new channel's own name, unless it's so generic that it would match ordinary talk."""
+    name = (name or "").strip()
+    words = re.findall(r"[A-Za-z']+", name)
+    if len(name) > 40 or (" " not in name and len(re.findall(r"[\u4e00-\u9fff]", name)) < 3):
+        return []
+    return [name] if any(w.lower() not in GENERIC for w in words) or not words else []
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     lookup = {k.lower(): v for k, v in ALIASES.items()}
+    # Channels added later keep their aliases beside their URL in data/channels.json.
+    from_file = {e["url"].rstrip("/").lower(): e["aliases"] for e in json.loads((ROOT / "data/channels.json").read_text()) if e.get("aliases")}
     patterns = []  # (compiled alias, channel_id)
     names = {}
     for f in sorted(CATALOG.glob("*.json")):
         d = json.loads(f.read_text())
         names[d["channel_id"]] = d["name"]
-        aliases = lookup.get((d["handle"] or "").lower())
+        aliases = (lookup.get((d["handle"] or "").lower()) or from_file.get((d.get("input_url") or "").lower())
+                   or fallback_aliases(d["name"]))
         if not aliases:
             print("no alias, skipped:", d["name"], d["handle"], flush=True)
             continue
@@ -124,6 +139,7 @@ def main():
 
     hits = collections.defaultdict(dict)
     stats = {"rows": 0, "first": None, "last": None, "streams": {}}
+    seen = set()  # A resumed download can repeat rows at its edge.
     for path in sorted(CORPUS.glob("*.jsonl")):
         count, low, high = 0, None, None
         with path.open() as f:
@@ -132,6 +148,9 @@ def main():
                     r = json.loads(line)
                 except json.JSONDecodeError:
                     continue  # A line still being written by the downloader.
+                if r["id"] in seen:
+                    continue
+                seen.add(r["id"])
                 count += 1
                 t = int(r["created_utc"])
                 low, high = t if low is None else min(low, t), t if high is None else max(high, t)

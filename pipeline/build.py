@@ -13,8 +13,12 @@ import math
 import pathlib
 import re
 import statistics as st
+import sys
 import time
 import urllib.parse
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from corpus import iter_rows  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RAW = ROOT / "data/raw"
@@ -91,11 +95,13 @@ def load_channels():
     reasons = {k.lower(): v for k, v in notes.get("exclude", {}).items()}
     verify = {k.lower(): v for k, v in notes.get("verify", {}).items()}
     excl = {k.lower(): reasons.get(k.lower(), {"kind": "other", "reason": "Left out after review."}) for k in review["exclude"]}
+    reviewed = {k.lower() for k in review.get("reviewed", {})}
     out = {}
     for f in sorted((RAW / "catalog").glob("*.json")):
         d = json.loads(f.read_text())
         d["seed"] = (d.get("handle") or "").lower() in seeds
         d["excluded"] = excl.get((d.get("handle") or "").lower())
+        d["reviewed"] = d["seed"] or (d.get("handle") or "").lower() in reviewed
         d["verify"] = verify.get((d.get("handle") or "").lower())
         out[d["channel_id"]] = d
     return out
@@ -113,20 +119,18 @@ def reddit_evidence(channels):
             for r in d["hits"]:
                 hits[d["channel_id"]][r["id"]] = r
     # Links in the broad harvest
-    if (RAW / "reddit.jsonl").exists():
-        for line in (RAW / "reddit.jsonl").open():
-            r = json.loads(line)
-            text = " ".join(str(r.get(k) or "") for k in ("body", "selftext", "title", "url"))
-            targets = set()
-            for v in VIDEO_LINK.findall(text):
-                url = (oembed.get(v) or {}).get("url") or ""
-                targets.add(handle_to_id.get(url.split("youtube.com/")[-1].lower().lstrip("@")))
-            for h in HANDLE_LINK.findall(text):
-                targets.add(handle_to_id.get(urllib.parse.unquote(h).lower()))
-            for cid in CHANNEL_LINK.findall(text):
-                targets.add(cid if cid in channels else None)
-            for cid in targets - {None}:
-                hits[cid].setdefault(r["id"], r)
+    for r in iter_rows(needle="youtu"):
+        text = " ".join(str(r.get(k) or "") for k in ("body", "selftext", "title", "url"))
+        targets = set()
+        for v in VIDEO_LINK.findall(text):
+            url = (oembed.get(v) or {}).get("url") or ""
+            targets.add(handle_to_id.get(url.split("youtube.com/")[-1].lower().lstrip("@")))
+        for h in HANDLE_LINK.findall(text):
+            targets.add(handle_to_id.get(urllib.parse.unquote(h).lower()))
+        for cid in CHANNEL_LINK.findall(text):
+            targets.add(cid if cid in channels else None)
+        for cid in targets - {None}:
+            hits[cid].setdefault(r["id"], r)
 
     # Someone repeatedly plugging one channel from many threads is treated as promotion.
     per_author = collections.defaultdict(lambda: collections.defaultdict(set))
@@ -284,6 +288,20 @@ def quotes_for(c):
     return all_quotes.get((c.get("handle") or "").lower(), [])
 
 
+def inclusion(c, people, shared, ai_disclosed):
+    """Whether a channel is listed, and why not. A channel must have passed the frame
+    review to be listed: evidence alone can't publish it, however strong."""
+    if c["excluded"]:
+        return "excluded-" + c["excluded"]["kind"], c["excluded"]["reason"]
+    if not c["seed"] and not (people >= 3 or shared >= 5):
+        return "excluded-evidence", f"{people} Reddit recommenders, {shared} shared fans."
+    if ai_disclosed > 0:
+        return "excluded-ai", f"YouTube's AI disclosure label on {ai_disclosed} sampled videos."
+    if not c["reviewed"]:
+        return "pending-review", "Passes the evidence checks, but its frames haven't been reviewed."
+    return "kept", ""
+
+
 def main():
     channels = load_channels()
     reddit = reddit_evidence(channels)
@@ -297,7 +315,7 @@ def main():
                      "fan": y.get("fanShare", 0.0), "loyal": y.get("loyal", 0.0)})
 
     # Scored against eligible channels only, so excluded ones can't distort the scale.
-    eligible = [x for x in rows if not x["c"]["excluded"]]
+    eligible = [x for x in rows if not x["c"]["excluded"] and x["c"]["reviewed"]]
     pr, pf, pl = (pct_ranks([x[k] for x in eligible]) for k in ("recommend", "fan", "loyal"))
     for x in eligible:
         x["score"] = 0.5 * pr[x["recommend"]] + 0.35 * pf[x["fan"]] + 0.15 * pl[x["loyal"]]
@@ -310,13 +328,7 @@ def main():
     keep = []
     for x in sorted(rows, key=lambda x: -x.get("score", -1)):
         c, r, y = x["c"], x["r"], x["y"]
-        status, why = "kept", ""
-        if c["excluded"]:
-            status, why = "excluded-" + c["excluded"]["kind"], c["excluded"]["reason"]
-        elif not c["seed"] and not (r["people"] >= 3 or y.get("shared", 0) >= 5):
-            status, why = "excluded-evidence", f"{r['people']} Reddit recommenders, {y.get('shared', 0)} shared fans."
-        elif y.get("ai_disclosed", 0) > 0:
-            status, why = "excluded-ai", f"YouTube's AI disclosure label on {y['ai_disclosed']} sampled videos."
+        status, why = inclusion(c, r["people"], y.get("shared", 0), y.get("ai_disclosed", 0))
         audit.append({"name": c["name"], "handle": c["handle"], "id": x["cid"], "status": status, "why": why, "verify": c.get("verify"),
                       "score": round(x.get("score", 0), 3), "people": r["people"], "threads": r["threads"], "first": r["first"], "last": r["last"],
                       "years": r["years"], "dropped": r["dropped"], "sampled": y.get("sampled"), "commenters": y.get("commenters"), "shared": y.get("shared"),
@@ -374,7 +386,7 @@ def main():
     data = {
         "built": TODAY,
         "stats": {"videos": len(videos_out), "people": len(set().union(*[x["r"]["authors"] for x in keep])), "redditRows": total_rows,
-                  "redditFirst": time.gmtime(corpus["first"]).tm_year if corpus["first"] else None, "candidates": len(channels), "excludedAi": excluded_ai,
+                  "redditFirst": time.gmtime(corpus["first"]).tm_year if corpus["first"] else None, "candidates": sum(a["status"] != "pending-review" for a in audit), "excludedAi": excluded_ai,
                   "labelChecked": sum(v[0] in DISCLOSURE for v in videos_out)},
         "method": json.loads((ROOT / "data/method.json").read_text()) | {"seedNames": seed_names, "buildPrompt": (ROOT / "PROMPT.md").read_text().strip()},
         "channels": channels_out, "videos": videos_out,

@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Audit aid: a sheet of real mid-video frames per channel, for the by-eye AI check."""
+"""Audit aid: a sheet of real mid-video frames per channel, for the by-eye AI check.
+
+Usage: contact_sheets.py [--out DIR] [@handle ...]    all channels when none are named
+"""
 import concurrent.futures as cf
 import io
 import json
 import pathlib
+import sys
 import urllib.request
 from PIL import Image, ImageDraw, ImageFont
 
@@ -34,8 +38,13 @@ def pick(videos):
 
 
 def main():
-    OUT.mkdir(parents=True, exist_ok=True)
+    args = sys.argv[1:]
+    out = pathlib.Path(args.pop(args.index("--out") + 1)) if "--out" in args else OUT
+    handles = {a.lower() for a in args if a != "--out"}
+    out.mkdir(parents=True, exist_ok=True)
     cats = [json.loads(p.read_text()) for p in sorted((ROOT / "data/raw/catalog").glob("*.json"))]
+    if handles:
+        cats = [c for c in cats if (c.get("handle") or "").lower() in handles]
     index = []
     with cf.ThreadPoolExecutor(12) as ex:
         for s in range(0, len(cats), PER_SHEET):
@@ -48,8 +57,8 @@ def main():
                 for col, im in enumerate(ex.map(frame, [v["id"] for v in pick(c["videos"])])):
                     sheet.paste(im, (col * TW, y + 22))
                 index.append(c["name"])
-            sheet.save(OUT / f"sheet{s // PER_SHEET:02d}.jpg", quality=80)
-    print(len(cats), "channels,", len(list(OUT.glob("*.jpg"))), "sheets")
+            sheet.save(out / f"sheet{s // PER_SHEET:02d}.jpg", quality=80)
+    print(len(cats), "channels,", len(list(out.glob("*.jpg"))), "sheets")
 
 
 if __name__ == "__main__":

@@ -12,9 +12,13 @@ import concurrent.futures as cf
 import json
 import pathlib
 import re
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from corpus import iter_rows  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RAW = ROOT / "data/raw"
@@ -34,12 +38,10 @@ SELF = re.compile(r"\b(my|our) (own )?(youtube |yt )?(channel|video|videos|podca
 
 
 def rows():
-    with (RAW / "reddit.jsonl").open() as f:
-        for line in f:
-            r = json.loads(line)
-            r["text"] = " ".join(str(r.get(k) or "") for k in ("body", "title", "selftext", "url"))
-            r["thread"] = (r.get("link_id") or r["id"]).replace("t3_", "")
-            yield r
+    for r in iter_rows():
+        r["text"] = " ".join(str(r.get(k) or "") for k in ("body", "title", "selftext", "url"))
+        r["thread"] = (r.get("link_id") or r["id"]).replace("t3_", "")
+        yield r
 
 
 def oembed(video_id):

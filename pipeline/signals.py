@@ -5,6 +5,8 @@ Output: data/raw/signals/<video_id>.json   comments (commenter IDs hashed), stat
         data/raw/captions/<video_id>.txt   plain Chinese caption text with timing total
 Raw comments stay in data/raw, which is git-ignored and never published.
 Re-runs skip finished videos, and a 429 pauses the worker rather than recording nothing.
+A channel that already has its full sample is left alone: its picks would otherwise shift
+with every upload, which costs hours and makes samples uneven between channels.
 """
 import concurrent.futures as cf
 import glob
@@ -45,6 +47,12 @@ def sample(videos):
         step = max(1, len(rest) // n)
         top += rest[::step][:n]
     return top
+
+
+def still_needed(videos, sampled):
+    """The picks to fetch now, given how many videos this channel has been sampled on."""
+    missing = [v for v in sample(videos) if v["id"] not in sampled["ids"]]
+    return missing[: max(0, SAMPLE - sampled["count"])]
 
 
 def wait_if_paused():
@@ -133,11 +141,16 @@ def main():
     CAP.mkdir(parents=True, exist_ok=True)
     only = set(sys.argv[1:])
     todo = []
+    sampled = {}
+    for f in SIG.glob("*.json"):
+        row = sampled.setdefault(json.loads(f.read_text()).get("channel"), {"count": 0, "ids": set()})
+        row["count"] += 1
+        row["ids"].add(f.stem)
     for f in sorted(CATALOG.glob("*.json")):
         d = json.loads(f.read_text())
         if only and d["channel_id"] not in only:
             continue
-        todo += [(d["name"], v["id"]) for v in sample(d["videos"])]
+        todo += [(d["name"], v["id"]) for v in still_needed(d["videos"], sampled.get(d["channel_id"], {"count": 0, "ids": set()}))]
     print(f"{len(todo)} videos to sample", flush=True)
     results = {}
     with cf.ThreadPoolExecutor(WORKERS) as ex:
