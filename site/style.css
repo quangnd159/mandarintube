@@ -168,7 +168,73 @@ main { max-width: 1320px; margin: 0 auto; padding: 8px var(--gutter) max(64px, e
 .evidence p { margin-top: 4px; text-wrap: pretty; }
 .quote { margin: 12px 0 0; padding-inline-start: 12px; border-inline-start: 2px solid var(--grid); max-width: 65ch; }
 .quote a { display: block; color: var(--muted); font-size: var(--text-small); margin-top: 2px; text-underline-offset: 3px; }
-.next h2 { font-size: var(--text-body); margin-bottom: 12px; }
+.next-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.next h2 { font-size: var(--text-body); }
+.switch { display: inline-flex; align-items: center; gap: 8px; min-height: var(--target); color: var(--muted); font-size: var(--text-small); cursor: pointer; user-select: none; }
+.switch input { appearance: none; margin: 0; width: 34px; height: 20px; border: 1.5px solid var(--muted); position: relative; cursor: pointer; flex: none; transition: background-color 120ms ease-out, border-color 120ms ease-out; }
+.switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; background: var(--muted); transition: transform 160ms var(--ease-out), background-color 120ms ease-out; }
+.switch input:checked { background: var(--grid); border-color: var(--grid); }
+.switch input:checked::after { background: var(--on-grid); transform: translateX(14px); }
+.switch input:checked + span { color: var(--ink); }
+
+/* Over the player when a video ends. Always dark, like the player it covers, and nearly
+   opaque so YouTube's own end screen doesn't show through behind the words. */
+.player { container-type: inline-size; }
+.endcard {
+  position: absolute; inset: 0; z-index: 1; display: grid; place-items: center;
+  padding: clamp(14px, 5cqi, 40px); color: #fff;
+  background: #0b1410f5; opacity: 1; transition: opacity 200ms var(--ease-out);
+  @starting-style { opacity: 0; }
+}
+@supports (backdrop-filter: blur(1px)) {
+  .endcard { background: #0b1410d1; backdrop-filter: blur(18px) saturate(1.1); }
+}
+.endcard[hidden] { display: none; }
+.endcard-inner {
+  display: grid; grid-template-columns: minmax(0, 46%) minmax(0, 1fr); gap: clamp(14px, 3.5cqi, 28px); align-items: center;
+  width: 100%; max-width: 680px;
+  transform: translateY(0); transition: transform 260ms var(--ease-out);
+  @starting-style { transform: translateY(6px); }
+}
+.endcard-thumb { display: block; outline-offset: 3px; }
+.endcard-thumb .thumb { box-shadow: 0 0 0 1px #ffffff1f; }
+.endcard-body { display: grid; gap: 6px; justify-items: start; min-width: 0; }
+.endcard-note { color: #f4aca1; font-size: var(--text-small); line-height: 1.4; }
+.endcard-eyebrow { color: #ffffffa6; font-size: var(--text-small); line-height: 1.3; font-variant-numeric: tabular-nums; }
+.endcard-title {
+  color: #fff; text-decoration: none; font-weight: 600; line-height: 1.3; font-size: clamp(var(--text-control), 2.6cqi, var(--text-section));
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; text-wrap: pretty;
+}
+.endcard-meta { color: #ffffffa6; font-size: var(--text-small); line-height: 1.3; display: flex; gap: 10px; min-width: 0; max-width: 100%; }
+.endcard-dur { display: none; font-variant-numeric: tabular-nums; } /* The thumbnail already shows it. */
+.endcard-meta span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.endcard-actions { display: flex; gap: 8px; margin-top: 8px; }
+.endcard .chip { color: #fff; border-color: #ffffff59; }
+/* The play button is the countdown: its fill sweeps across while the seconds run out. */
+.endcard .endcard-go { position: relative; isolation: isolate; overflow: hidden; background: #fff; color: #0b1410; border-color: #fff; font-weight: 600; }
+.endcard-go[data-count]::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; background: #d9e8d3;
+  clip-path: inset(0 100% 0 0); animation: endcard-fill var(--count) linear forwards;
+}
+@keyframes endcard-fill { to { clip-path: inset(0 0 0 0); } }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) {
+  .endcard .chip:not(.endcard-go):hover { background: #ffffff14; border-color: #ffffff99; }
+  .endcard-thumb:hover .thumb img { opacity: .85; }
+  .endcard-title:hover { text-decoration: underline; text-decoration-thickness: from-font; text-underline-offset: 3px; }
+}
+/* A small player has no room for a picture, so the words and buttons take the space. */
+@container (max-width: 520px) {
+  .endcard-inner { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; max-width: 360px; }
+  .endcard-thumb { display: none; }
+  .endcard-body { justify-items: center; }
+  .endcard-meta { justify-content: center; }
+  .endcard-dur { display: inline; }
+}
+@container (max-width: 340px) {
+  .endcard-meta { display: none; }
+  .endcard-actions { margin-top: 4px; }
+}
 .next-item { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: 10px; text-decoration: none; margin-bottom: 12px; }
 .next-item .card-title { margin-top: 0; font-size: var(--text-control); }
 
@@ -235,4 +301,6 @@ main { max-width: 1320px; margin: 0 auto; padding: 8px var(--gutter) max(64px, e
 @media (prefers-reduced-motion: reduce) {
   .level .cell, .chip { transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out; }
   .level:active .cell, .chip:active { transform: none; }
+  .switch input::after { transition: background-color 120ms ease-out; }
+  .endcard-inner { transition: none; }
 }

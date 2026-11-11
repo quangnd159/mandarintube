@@ -30,6 +30,8 @@ const T = {
     notFound: "Video này không có trong thư viện.", goHome: "Về trang chủ",
     like: "Thích", liked: "Đã thích", later: "Xem sau", savedLater: "Đã lưu xem sau", openYt: "Mở trên YouTube",
     why: "Vì sao video này có ở đây", upNext: "Xem tiếp",
+    autoplay: "Tự phát tiếp", inSecs: (n) => `sau ${n} giây`, nextLabel: "Tiếp theo",
+    playNow: "Phát ngay", cancel: "Hủy", cantPlay: "Video này không phát được ở đây.",
     levelLabelled: (l) => `Trình độ: ${l}, theo nhãn của giáo viên.`,
     levelEstimated: (l) => `Trình độ ${l} là ước tính dựa trên các video khác của kênh.`,
     recommended: (p, t, span) => `Được ${p} người giới thiệu trong ${t} chủ đề trên Reddit${span}.`,
@@ -89,6 +91,8 @@ const T = {
     notFound: "This video isn’t in the library.", goHome: "Go to the home page",
     like: "Like", liked: "Liked", later: "Watch later", savedLater: "Saved for later", openYt: "Open on YouTube",
     why: "Why this is here", upNext: "Up next",
+    autoplay: "Autoplay", inSecs: (n) => `in ${n}s`, nextLabel: "Up next",
+    playNow: "Play now", cancel: "Cancel", cantPlay: "This video can’t be played here.",
     levelLabelled: (l) => `Level: ${l}, as labelled by the teacher.`,
     levelEstimated: (l) => `The ${l} level is an estimate based on this channel’s other videos.`,
     recommended: (p, t, span) => `Recommended by ${p} people in ${t} Reddit threads${span}.`,
@@ -155,6 +159,7 @@ const state = {
   liked: store.read("liked", []),
   later: store.read("later", []),
   history: store.read("history", []),
+  autoplay: store.read("autoplay", true) !== false,
   hidden: store.read("hidden", []), // Channel IDs, because list positions change on every rebuild.
   query: "",
 };
@@ -354,19 +359,41 @@ function viewWatch(id) {
     main.innerHTML = emptyBlock(L.notFound, "", `<a class="chip" href="/" data-link>${esc(L.goHome)}</a>`);
     return;
   }
-  const c = DATA.channels[v.c], lvl = levelOf(v.l);
   document.title = `${titleOf(v)} | MandarinTube`;
   state.history = [{ id, t: Date.now() }, ...state.history.filter((h) => h.id !== id)].slice(0, 500);
   store.write("history", state.history);
   const same = ranked(VIDEOS.filter((x) => x.id !== id && x.c === v.c && (!v.l || x.l === v.l)), { personal: false }).slice(0, 4);
   const others = ranked(VIDEOS.filter((x) => x.id !== id && x.c !== v.c && x.l === v.l && !isHidden(x))).slice(0, 8);
-  const params = new URLSearchParams({ rel: "0", modestbranding: "1", hl: state.lang, cc_lang_pref: "zh-Hans", autoplay: "1", playsinline: "1", origin: location.origin });
+  const upNext = [...same, ...others];
+  // Autoplay picks the first one not watched yet, so a run of videos never circles back.
+  const seen = new Set(state.history.map((h) => h.id));
+  player.nextId = (upNext.find((n) => !seen.has(n.id)) || upNext[0])?.id || null;
+
+  // Going from one video to the next keeps the same iframe and tells it to load the new one.
+  // A fresh iframe would need a new tap before it may play with sound, especially on phones.
+  const live = player.ready && player.frame?.isConnected && main.querySelector(".watch .player");
+  if (live) {
+    player.load(id);
+    player.frame.title = v.t;
+    main.querySelector(".watch-info").innerHTML = watchInfo(v);
+    main.querySelector(".next").innerHTML = upNextList(upNext);
+    return;
+  }
+  const params = new URLSearchParams({ rel: "0", modestbranding: "1", hl: state.lang, cc_lang_pref: "zh-Hans", autoplay: "1", playsinline: "1", enablejsapi: "1", origin: location.origin });
+  main.innerHTML = `<div class="watch">
+    <div class="watch-main">
+      <div class="player"><iframe src="${YT_ORIGIN}/embed/${id}?${params}" title="${esc(v.t)}" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe><div class="endcard" hidden></div></div>
+      <div class="watch-info">${watchInfo(v)}</div>
+    </div>
+    <aside class="next" aria-label="${esc(L.upNext)}">${upNextList(upNext)}</aside>
+  </div>`;
+  player.attach(main.querySelector(".player iframe"), id);
+}
+function watchInfo(v) {
+  const L = t(), c = DATA.channels[v.c], lvl = levelOf(v.l), id = v.id;
   const levelNote = lvl ? (v.ls ? L.levelLabelled(levelName(lvl).toLowerCase()) : L.levelEstimated(levelName(lvl).toLowerCase())) : "";
   const liked = state.liked.includes(id), later = state.later.includes(id);
-  main.innerHTML = `<div class="watch">
-    <div>
-      <div class="player"><iframe src="https://www.youtube-nocookie.com/embed/${id}?${params}" title="${esc(v.t)}" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
-      <h1>${esc(titleOf(v))}</h1>
+  return `<h1>${esc(titleOf(v))}</h1>
       <p class="orig" lang="und"${titleOf(v) === v.t ? " hidden" : ""}>${esc(v.t)}</p>
       <div class="meta"><a href="${channelHref(c)}" data-link>${esc(c.name)}</a>${v.v ? `<span>${esc(L.views(fmtCompact(v.v)))}</span>` : ""}<span>${fmtDur(v.d)}</span></div>
       <div class="actions">
@@ -377,16 +404,103 @@ function viewWatch(id) {
       <section class="evidence">
         <h2>${esc(L.why)}</h2>
         <p>${esc(evidenceSentence(c))} ${esc(levelNote)}</p>
-      </section>
-    </div>
-    <aside class="next" aria-label="${esc(L.upNext)}">
-      <h2>${esc(L.upNext)}</h2>
-      ${[...same, ...others].map((n) => `<a class="next-item" href="/?v=${n.id}" data-link>
+      </section>`;
+}
+function upNextList(list) {
+  const L = t();
+  return `<div class="next-head"><h2>${esc(L.upNext)}</h2>
+      <label class="switch"><input type="checkbox" data-autoplay${state.autoplay ? " checked" : ""}><span>${esc(L.autoplay)}</span></label></div>
+      ${list.map((n) => `<a class="next-item" href="/?v=${n.id}" data-link>
         <div class="thumb">${thumbImg(n.id)}<span class="dur">${fmtDur(n.d)}</span></div>
         <div><div class="card-title" data-vid="${n.id}">${esc(titleOf(n))}</div><div class="meta"><span>${esc(DATA.channels[n.c].name)}</span></div></div>
-      </a>`).join("")}
-    </aside>
-  </div>`;
+      </a>`).join("")}`;
+}
+
+/* ---------- Player: YouTube's embed speaks postMessage, so no extra script loads ---------- */
+const YT_ORIGIN = "https://www.youtube-nocookie.com";
+const COUNTDOWN = 8; // Seconds: long enough to stop it, short enough to keep listening.
+const player = {
+  frame: null, ready: false, id: null, nextId: null, lastState: null, hello: 0, tick: 0,
+  send(msg) { this.frame?.contentWindow?.postMessage(JSON.stringify({ id: 1, channel: "widget", ...msg }), YT_ORIGIN); },
+  command(func, args = []) { this.send({ event: "command", func, args }); },
+  attach(frame, id) {
+    this.stopCountdown();
+    Object.assign(this, { frame, ready: false, id, lastState: null });
+    // The embed only starts reporting once it hears "listening", and it may not be ready for the first few.
+    clearInterval(this.hello);
+    const greet = () => { if (this.ready || !frame.isConnected) clearInterval(this.hello); else this.send({ event: "listening" }); };
+    frame.addEventListener("load", greet);
+    this.hello = setInterval(greet, 250);
+  },
+  load(id) {
+    this.stopCountdown();
+    this.id = id; this.lastState = null;
+    this.command("loadVideoById", [id, 0]);
+  },
+  stopCountdown() {
+    clearInterval(this.tick); this.tick = 0;
+    const card = main.querySelector(".endcard");
+    if (card) { card.hidden = true; card.innerHTML = ""; }
+  },
+  // Shown over the player when a video ends or can't play. It counts down only with autoplay on.
+  showEndcard(reason) {
+    const card = main.querySelector(".endcard"), next = BY_ID.get(this.nextId);
+    if (!card || !next) return;
+    const L = t(), href = `/?v=${next.id}`, counting = state.autoplay;
+    let left = COUNTDOWN;
+    card.innerHTML = `<div class="endcard-inner">
+      <a class="endcard-thumb" href="${href}" data-link tabindex="-1" aria-hidden="true"><div class="thumb">${thumbImg(next.id)}<span class="dur">${fmtDur(next.d)}</span></div></a>
+      <div class="endcard-body">
+        ${reason === "error" ? `<p class="endcard-note">${esc(L.cantPlay)}</p>` : ""}
+        <p class="endcard-eyebrow">${esc(L.nextLabel)}${counting ? ` · <span class="endcard-secs">${esc(L.inSecs(left))}</span>` : ""}</p>
+        <a class="endcard-title" href="${href}" data-link>${esc(titleOf(next))}</a>
+        <p class="endcard-meta"><span>${esc(DATA.channels[next.c].name)}</span><span class="endcard-dur">${fmtDur(next.d)}</span></p>
+        <div class="endcard-actions">
+          <a class="chip endcard-go" href="${href}" data-link${counting ? ` data-count style="--count:${COUNTDOWN}s"` : ""}>${esc(L.playNow)}</a>
+          <button class="chip" type="button" data-endcard-cancel>${esc(L.cancel)}</button>
+        </div>
+      </div>
+      <p class="sr-only" role="status">${esc(`${L.nextLabel}: ${titleOf(next)}`)}</p>
+    </div>`;
+    card.hidden = false;
+    if (!counting) return;
+    // One deadline drives the words. The fill on the button is a CSS animation of the same length.
+    const secs = card.querySelector(".endcard-secs"), deadline = Date.now() + COUNTDOWN * 1000;
+    clearInterval(this.tick);
+    this.tick = setInterval(() => {
+      if (!card.isConnected) return this.stopCountdown();
+      left = Math.ceil((deadline - Date.now()) / 1000);
+      if (left > 0) { secs.textContent = t().inSecs(left); return; }
+      this.stopCountdown();
+      goTo(href);
+    }, 250);
+  },
+  onState(s) {
+    if (s === this.lastState) return; // The embed reports each change through two channels.
+    this.lastState = s;
+    if (s === 0) this.showEndcard("ended");
+    else if (s === 1 || s === 3) this.stopCountdown();
+  },
+};
+window.addEventListener("message", (e) => {
+  if (e.origin !== YT_ORIGIN || !player.frame || e.source !== player.frame.contentWindow) return;
+  let msg;
+  try { msg = typeof e.data === "string" ? JSON.parse(e.data) : e.data; } catch { return; }
+  if (!msg || typeof msg !== "object") return;
+  if (msg.event === "onReady" || msg.event === "initialDelivery") {
+    if (!player.ready) {
+      player.ready = true;
+      player.command("addEventListener", ["onStateChange"]);
+      player.command("addEventListener", ["onError"]);
+    }
+  } else if (msg.event === "onStateChange") player.onState(Number(msg.info));
+  else if (msg.event === "infoDelivery" && msg.info && "playerState" in msg.info) player.onState(Number(msg.info.playerState));
+  else if (msg.event === "onError") { player.lastState = "error"; player.showEndcard("error"); }
+});
+function goTo(href) {
+  rememberPosition();
+  history.pushState({}, "", href);
+  route();
 }
 
 function viewChannels() {
@@ -491,6 +605,7 @@ function route(restore) {
   });
   main.querySelectorAll(".sentinel").forEach((s) => s.remove());
   shownNow = 0;
+  player.stopCountdown();
   if (q.get("v")) viewWatch(q.get("v"));
   else if (q.get("c")) viewChannel(q.get("c"), restore);
   else if (view === "channels") viewChannels();
@@ -570,6 +685,10 @@ document.addEventListener("click", (e) => {
     });
     return;
   }
+  if (e.target.closest("[data-endcard-cancel]")) {
+    player.stopCountdown();
+    return;
+  }
   const toggle = e.target.closest("[data-toggle]");
   if (toggle) {
     const { toggle: key, id } = toggle.dataset;
@@ -610,6 +729,14 @@ document.addEventListener("click", (e) => {
   }
 });
 
+document.addEventListener("change", (e) => {
+  if (!e.target.matches("[data-autoplay]")) return;
+  state.autoplay = e.target.checked;
+  store.write("autoplay", state.autoplay);
+  // Turning it off mid-countdown stops it. Turning it on again waits for the next ending.
+  if (!state.autoplay) player.stopCountdown();
+});
+
 // Reloading the page would restart the video, so the watch page swaps its words in place.
 function relabelWatch() {
   const L = t(), q = new URLSearchParams(location.search), v = BY_ID.get(q.get("v"));
@@ -630,10 +757,12 @@ function relabelWatch() {
   const aside = main.querySelector(".next");
   aside.setAttribute("aria-label", L.upNext);
   aside.querySelector("h2").textContent = L.upNext;
+  aside.querySelector(".switch span").textContent = L.autoplay;
 }
 
 // "/" jumps to search, and Escape clears it. Neither fires while typing in the field.
 document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && player.tick) { player.stopCountdown(); return; }
   const search = main.querySelector(".search");
   if (!search) return;
   if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey && document.activeElement !== search) {
